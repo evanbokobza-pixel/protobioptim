@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,6 +12,7 @@ from app.services import payments
 from app.services.case_requests import (
     attach_file_to_request,
     create_case_request,
+    delete_case_request,
     get_case_request,
     list_user_requests,
 )
@@ -110,7 +111,7 @@ def create_request(
     comment: str = Form(""),
     wants_email_copy: str | None = Form(default=None),
     csrf_token: str = Form(...),
-    analysis_files: list[UploadFile] = File(...),
+    analysis_files: list[UploadFile] | None = File(default=None),
     current_user=Depends(require_user),
     db: Session = Depends(get_db),
 ):
@@ -121,9 +122,9 @@ def create_request(
         set_flash(request, "Choisissez une formule avant d'envoyer vos analyses.", "error")
         return RedirectResponse("/checkout?plan=single", status_code=303)
 
-    valid_files = [file for file in analysis_files if file.filename]
+    valid_files = [file for file in (analysis_files or []) if file.filename and file.filename.strip()]
     if not valid_files:
-        set_flash(request, "Merci d'ajouter au moins un fichier.", "error")
+        set_flash(request, "Merci d'ajouter au moins un fichier d'analyse avant d'envoyer votre demande.", "error")
         return RedirectResponse("/requests/new", status_code=303)
 
     case_request = create_case_request(
@@ -143,7 +144,14 @@ def create_request(
             payload = storage_backend.upload_case_file(case_request.id, upload)
             attach_file_to_request(db, case_request=case_request, file_payload=payload)
     except StorageError as exc:
+        delete_case_request(db, case_request=case_request, user=current_user)
         set_flash(request, str(exc), "error")
+        return RedirectResponse("/requests/new", status_code=303)
+
+    refreshed_case_request = get_case_request(db, case_request.id)
+    if not refreshed_case_request or not refreshed_case_request.files:
+        delete_case_request(db, case_request=case_request, user=current_user)
+        set_flash(request, "Votre demande doit contenir au moins un fichier d'analyse.", "error")
         return RedirectResponse("/requests/new", status_code=303)
 
     set_flash(request, "Votre demande a bien ete envoyee.")
@@ -194,3 +202,4 @@ def download_file(
     except StorageError as exc:
         set_flash(request, str(exc), "error")
         return RedirectResponse(f"/requests/{case_request.id}", status_code=303)
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -65,6 +65,13 @@ def create_case_request(
     db.commit()
     db.refresh(case_request)
     return case_request
+
+
+def delete_case_request(db: Session, *, case_request: CaseRequest, user: User) -> None:
+    if user.role != "admin" and case_request.request_type == "Analyse unique":
+        user.single_request_credits += 1
+    db.delete(case_request)
+    db.commit()
 
 
 def attach_file_to_request(db: Session, *, case_request: CaseRequest, file_payload) -> CaseFile:
