@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import io
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
@@ -12,6 +13,8 @@ from supabase import Client, create_client
 
 from app.config import settings
 
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_MIME_TYPES = {
     "application/pdf",
@@ -138,12 +141,10 @@ class SupabaseStorageBackend:
         service_role_key: str,
         bucket_name: str,
         max_upload_size_bytes: int,
-        signed_url_ttl_seconds: int,
     ):
         self.client: Client = create_client(supabase_url, service_role_key)
         self.bucket_name = bucket_name
         self.max_upload_size_bytes = max_upload_size_bytes
-        self.signed_url_ttl_seconds = signed_url_ttl_seconds
 
     def ensure_ready(self) -> None:
         try:
@@ -173,7 +174,7 @@ class SupabaseStorageBackend:
             object_path = f"case-files/{case_request_id}/{uuid4().hex}{extension}"
             self.client.storage.from_(self.bucket_name).upload(
                 path=object_path,
-                file=io.BytesIO(content),
+                file=content,
                 file_options={
                     "content-type": upload.content_type or "application/octet-stream",
                     "cache-control": "3600",
@@ -219,16 +220,53 @@ class SupabaseStorageBackend:
             pass
 
 
+class ResilientStorageBackend:
+    provider = "resilient"
+
+    def __init__(self, primary_backend, fallback_backend):
+        self.primary_backend = primary_backend
+        self.fallback_backend = fallback_backend
+
+    def ensure_ready(self) -> None:
+        self.fallback_backend.ensure_ready()
+        try:
+            self.primary_backend.ensure_ready()
+        except StorageError:
+            logger.exception("Primary storage backend is unavailable at startup; fallback storage will be used.")
+
+    def upload_case_file(self, case_request_id: int, upload: UploadFile) -> StoredFilePayload:
+        try:
+            upload.file.seek(0)
+            return self.primary_backend.upload_case_file(case_request_id, upload)
+        except Exception:
+            logger.exception("Primary storage upload failed; falling back to local storage.")
+            upload.file.seek(0)
+            return self.fallback_backend.upload_case_file(case_request_id, upload)
+
+    def file_response(self, file_record, *, as_attachment: bool) -> Response:
+        backend = self.primary_backend if file_record.storage_provider == self.primary_backend.provider else self.fallback_backend
+        return backend.file_response(file_record, as_attachment=as_attachment)
+
+    def delete_case_file(self, file_record) -> None:
+        backend = self.primary_backend if file_record.storage_provider == self.primary_backend.provider else self.fallback_backend
+        backend.delete_case_file(file_record)
+
+    def delete_payload(self, payload: StoredFilePayload) -> None:
+        backend = self.primary_backend if payload.provider == self.primary_backend.provider else self.fallback_backend
+        backend.delete_payload(payload)
+
+
 def build_storage_backend():
+    local_backend = LocalStorageBackend(
+        root=settings.uploads_dir,
+        max_upload_size_bytes=settings.max_upload_size_bytes,
+    )
     if settings.uses_supabase_storage:
-        return SupabaseStorageBackend(
+        supabase_backend = SupabaseStorageBackend(
             supabase_url=settings.supabase_url,
             service_role_key=settings.supabase_service_role_key,
             bucket_name=settings.supabase_storage_bucket,
             max_upload_size_bytes=settings.max_upload_size_bytes,
-            signed_url_ttl_seconds=settings.signed_url_ttl_seconds,
         )
-    return LocalStorageBackend(
-        root=settings.uploads_dir,
-        max_upload_size_bytes=settings.max_upload_size_bytes,
-    )
+        return ResilientStorageBackend(supabase_backend, local_backend)
+    return local_backend
