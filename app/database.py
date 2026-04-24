@@ -20,7 +20,11 @@ class Base(DeclarativeBase):
 
 
 def _build_engine(database_url: str):
-    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+    if database_url.startswith("sqlite"):
+        connect_args = {"check_same_thread": False}
+    else:
+        connect_args = {"connect_timeout": 5}
+
     return create_engine(
         database_url,
         connect_args=connect_args,

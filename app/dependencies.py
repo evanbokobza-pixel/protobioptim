@@ -75,6 +75,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     return get_user_by_id(db, user_id)
 
 
+def get_current_user_safe(request: Request):
+    # Public pages should stay reachable even if the remote database is slow or unavailable.
+    return None
+
+
 def require_user(current_user=Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})

@@ -1,16 +1,16 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
-from app.dependencies import build_context, get_current_user, templates
+from app.dependencies import build_context, get_current_user_safe, templates
 
 
 router = APIRouter()
 
 
 @router.get("/", response_class=HTMLResponse)
-def home(request: Request, current_user=Depends(get_current_user)):
+def home(request: Request, current_user=Depends(get_current_user_safe)):
     context = build_context(request, current_user=current_user)
     return templates.TemplateResponse(request, "home.html", context)
 
