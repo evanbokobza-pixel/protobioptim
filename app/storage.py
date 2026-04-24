@@ -54,10 +54,11 @@ def _validate_upload(upload: UploadFile, max_upload_size_bytes: int) -> tuple[st
     return original_name, content
 
 
-def _build_download_headers(filename: str) -> dict[str, str]:
+def _build_content_headers(filename: str, *, as_attachment: bool) -> dict[str, str]:
     quoted_name = quote(filename)
+    disposition = "attachment" if as_attachment else "inline"
     return {
-        "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quoted_name}",
+        "Content-Disposition": f"{disposition}; filename=\"{filename}\"; filename*=UTF-8''{quoted_name}",
     }
 
 
@@ -89,7 +90,7 @@ class LocalStorageBackend:
             original_name=original_name,
         )
 
-    def download_response(self, file_record) -> Response:
+    def file_response(self, file_record, *, as_attachment: bool) -> Response:
         target = self.root / file_record.storage_path
         if not target.exists():
             raise StorageError("Le fichier demande n'est plus disponible.")
@@ -97,8 +98,18 @@ class LocalStorageBackend:
             path=target,
             media_type=file_record.mime_type or "application/octet-stream",
             filename=file_record.original_name,
-            headers=_build_download_headers(file_record.original_name),
+            headers=_build_content_headers(file_record.original_name, as_attachment=as_attachment),
         )
+
+    def delete_case_file(self, file_record) -> None:
+        target = self.root / file_record.storage_path
+        if target.exists():
+            target.unlink()
+
+    def delete_payload(self, payload: StoredFilePayload) -> None:
+        target = self.root / payload.path
+        if target.exists():
+            target.unlink()
 
 
 class SupabaseStorageBackend:
@@ -159,13 +170,20 @@ class SupabaseStorageBackend:
             original_name=original_name,
         )
 
-    def download_response(self, file_record) -> Response:
+    def file_response(self, file_record, *, as_attachment: bool) -> Response:
         content = self.client.storage.from_(file_record.storage_bucket).download(file_record.storage_path)
         return Response(
             content=content,
             media_type=file_record.mime_type or "application/octet-stream",
-            headers=_build_download_headers(file_record.original_name),
+            headers=_build_content_headers(file_record.original_name, as_attachment=as_attachment),
         )
+
+    def delete_case_file(self, file_record) -> None:
+        self.client.storage.from_(file_record.storage_bucket).remove([file_record.storage_path])
+
+    def delete_payload(self, payload: StoredFilePayload) -> None:
+        if payload.bucket:
+            self.client.storage.from_(payload.bucket).remove([payload.path])
 
 
 def build_storage_backend():

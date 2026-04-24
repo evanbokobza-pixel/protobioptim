@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Dossier {{ case_request.id }} | {{ app_name }}{% endblock %}
 {% block content %}
 <main class="page">
@@ -11,13 +11,21 @@
                 <span class="badge badge-{{ case_request.status }}">{{ status_label(case_request.status) }}</span>
             </div>
         </div>
-        <div class="hero-actions">
+        <div class="hero-actions compact-actions">
             <a class="button button-light" href="/dashboard">Retour au tableau de bord</a>
-            {% if current_user.role == "admin" %}
+            {% if is_editable %}
+                <a class="button" href="/requests/{{ case_request.id }}/edit">Modifier mon dossier</a>
+            {% elif current_user.role == "admin" %}
                 <a class="button" href="/admin/requests/{{ case_request.id }}">Voir cote admin</a>
             {% endif %}
         </div>
     </section>
+
+    {% if is_editable %}
+        <div class="panel panel-soft status-note">
+            Vous pouvez encore relire vos PDF et modifier votre dossier tant que l'analyse n'a pas commence.
+        </div>
+    {% endif %}
 
     <section class="grid grid-2">
         <article class="panel">
@@ -36,10 +44,16 @@
         <article class="panel">
             <p class="eyebrow">Fichiers et reponse</p>
             <h2>Documents transmis</h2>
-            <ul class="file-list">
+            <ul class="file-list file-list-detailed">
                 {% if case_request.files %}
                     {% for file in case_request.files %}
-                        <li><a class="inline-link" href="/files/{{ file.id }}">{{ file.original_name }}</a></li>
+                        <li>
+                            <strong>{{ file.original_name }}</strong>
+                            <span class="file-actions">
+                                <a class="inline-link" href="/files/{{ file.id }}/preview" target="_blank" rel="noopener">Relire le document</a>
+                                <a class="inline-link" href="/files/{{ file.id }}">Telecharger</a>
+                            </span>
+                        </li>
                     {% endfor %}
                 {% else %}
                     <li>Aucun fichier transmis.</li>

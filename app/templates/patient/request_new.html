@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Nouvelle demande | {{ app_name }}{% endblock %}
 {% block content %}
 <main class="page">
@@ -10,13 +10,14 @@
             <span class="eyebrow">Ma formule</span>
             <strong>{{ access_label }}</strong>
         </div>
-        <form method="post" enctype="multipart/form-data" class="form-grid">
+        <form method="post" enctype="multipart/form-data" class="form-grid" data-upload-form>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="upload-box">
                 <strong>Selectionnez vos documents</strong>
-                <span>Formats conseilles : PDF, JPG ou PNG. Vous pouvez joindre plusieurs fichiers.</span>
-                <input type="file" name="analysis_files" multiple required>
+                <span>Formats conseilles : PDF, JPG, PNG ou WEBP. Vous pouvez joindre plusieurs fichiers.</span>
+                <input type="file" name="analysis_files" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple required>
             </div>
+            <p class="footnote">Votre demande ne sera enregistree qu'avec au moins un fichier. Le transfert peut prendre quelques secondes.</p>
             <div class="grid grid-2">
                 <label>
                     Age
@@ -48,8 +49,20 @@
                 <input type="checkbox" name="wants_email_copy" value="yes">
                 <span>Je souhaite recevoir un email lorsqu'une reponse sera disponible dans mon espace.</span>
             </label>
-            <button class="button" type="submit">Envoyer ma demande</button>
+            <button class="button" type="submit" data-submit-button data-loading-text="Envoi en cours...">Envoyer ma demande</button>
         </form>
     </section>
 </main>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const form = document.querySelector("[data-upload-form]");
+    const button = form?.querySelector("[data-submit-button]");
+    if (!form || !button) return;
+
+    form.addEventListener("submit", () => {
+        button.disabled = true;
+        button.textContent = button.dataset.loadingText || "Envoi en cours...";
+    });
+});
+</script>
 {% endblock %}

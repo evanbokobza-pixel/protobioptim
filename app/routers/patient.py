@@ -6,21 +6,29 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import build_context, require_user, set_flash, templates
-from app.models import CaseFile, Payment
+from app.models import Payment
 from app.security import csrf_is_valid, ensure_csrf_token
 from app.services import payments
 from app.services.case_requests import (
     attach_file_to_request,
     create_case_request,
+    delete_case_file,
     delete_case_request,
+    get_case_file,
     get_case_request,
     list_user_requests,
+    patient_can_edit_request,
+    update_case_request_details,
 )
 from app.services.users import can_submit_requests
 from app.storage import StorageError
 
 
 router = APIRouter()
+
+
+def _user_owns_request(case_request, current_user) -> bool:
+    return bool(case_request and (case_request.user_id == current_user.id or current_user.role == "admin"))
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -139,11 +147,18 @@ def create_request(
     )
 
     storage_backend = request.app.state.storage_backend
+    uploaded_payloads = []
     try:
         for upload in valid_files:
             payload = storage_backend.upload_case_file(case_request.id, upload)
+            uploaded_payloads.append(payload)
             attach_file_to_request(db, case_request=case_request, file_payload=payload)
     except StorageError as exc:
+        for payload in uploaded_payloads:
+            try:
+                storage_backend.delete_payload(payload)
+            except Exception:
+                pass
         delete_case_request(db, case_request=case_request, user=current_user)
         set_flash(request, str(exc), "error")
         return RedirectResponse("/requests/new", status_code=303)
@@ -166,9 +181,35 @@ def request_detail(
     db: Session = Depends(get_db),
 ):
     case_request = get_case_request(db, request_id)
-    if not case_request or (case_request.user_id != current_user.id and current_user.role != "admin"):
+    if not _user_owns_request(case_request, current_user):
         set_flash(request, "Ce dossier est introuvable.", "error")
         return RedirectResponse("/dashboard", status_code=303)
+
+    is_editable = patient_can_edit_request(case_request)
+    context = build_context(
+        request,
+        current_user=current_user,
+        case_request=case_request,
+        is_editable=is_editable,
+        csrf_token=ensure_csrf_token(request.session),
+    )
+    return templates.TemplateResponse(request, "patient/request_detail.html", context)
+
+
+@router.get("/requests/{request_id}/edit", response_class=HTMLResponse)
+def edit_request_form(
+    request: Request,
+    request_id: int,
+    current_user=Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    case_request = get_case_request(db, request_id)
+    if not _user_owns_request(case_request, current_user):
+        set_flash(request, "Ce dossier est introuvable.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+    if not patient_can_edit_request(case_request):
+        set_flash(request, "Ce dossier n'est plus modifiable car l'analyse a deja commence.", "error")
+        return RedirectResponse(f"/requests/{request_id}", status_code=303)
 
     context = build_context(
         request,
@@ -176,7 +217,109 @@ def request_detail(
         case_request=case_request,
         csrf_token=ensure_csrf_token(request.session),
     )
-    return templates.TemplateResponse(request, "patient/request_detail.html", context)
+    return templates.TemplateResponse(request, "patient/request_edit.html", context)
+
+
+@router.post("/requests/{request_id}/edit")
+def edit_request(
+    request: Request,
+    request_id: int,
+    age: str = Form(...),
+    sex: str = Form(...),
+    context_value: str = Form("", alias="context"),
+    symptoms: str = Form(""),
+    comment: str = Form(""),
+    wants_email_copy: str | None = Form(default=None),
+    remove_file_ids: list[int] | None = Form(default=None),
+    analysis_files: list[UploadFile] | None = File(default=None),
+    csrf_token: str = Form(...),
+    current_user=Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if not csrf_is_valid(request.session, csrf_token):
+        set_flash(request, "Le formulaire a expire. Merci de recommencer.", "error")
+        return RedirectResponse(f"/requests/{request_id}/edit", status_code=303)
+
+    case_request = get_case_request(db, request_id)
+    if not _user_owns_request(case_request, current_user):
+        set_flash(request, "Ce dossier est introuvable.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+    if not patient_can_edit_request(case_request):
+        set_flash(request, "Ce dossier n'est plus modifiable car l'analyse a deja commence.", "error")
+        return RedirectResponse(f"/requests/{request_id}", status_code=303)
+
+    remove_ids = {int(value) for value in (remove_file_ids or [])}
+    files_to_remove = [file for file in case_request.files if file.id in remove_ids]
+    valid_new_files = [file for file in (analysis_files or []) if file.filename and file.filename.strip()]
+    remaining_count = len(case_request.files) - len(files_to_remove)
+    final_count = remaining_count + len(valid_new_files)
+    if final_count < 1:
+        set_flash(request, "Votre dossier doit conserver au moins un fichier d'analyse.", "error")
+        return RedirectResponse(f"/requests/{request_id}/edit", status_code=303)
+
+    storage_backend = request.app.state.storage_backend
+    uploaded_payloads = []
+    try:
+        for upload in valid_new_files:
+            payload = storage_backend.upload_case_file(case_request.id, upload)
+            uploaded_payloads.append(payload)
+    except StorageError as exc:
+        for payload in uploaded_payloads:
+            try:
+                storage_backend.delete_payload(payload)
+            except Exception:
+                pass
+        set_flash(request, str(exc), "error")
+        return RedirectResponse(f"/requests/{request_id}/edit", status_code=303)
+
+    update_case_request_details(
+        db,
+        case_request=case_request,
+        age=age,
+        sex=sex,
+        context=context_value,
+        symptoms=symptoms,
+        comment=comment,
+        wants_email_copy=bool(wants_email_copy),
+    )
+
+    for payload in uploaded_payloads:
+        attach_file_to_request(db, case_request=case_request, file_payload=payload)
+
+    for file_record in files_to_remove:
+        try:
+            storage_backend.delete_case_file(file_record)
+        except Exception:
+            pass
+        delete_case_file(db, file_record=file_record)
+
+    set_flash(request, "Votre dossier a ete mis a jour.")
+    return RedirectResponse(f"/requests/{request_id}", status_code=303)
+
+
+@router.get("/files/{file_id}/preview")
+def preview_file(
+    request: Request,
+    file_id: int,
+    current_user=Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    file_entry = get_case_file(db, file_id)
+    if not file_entry:
+        set_flash(request, "Le fichier demande est introuvable.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+
+    case_request = get_case_request(db, file_entry.case_request_id)
+    if not _user_owns_request(case_request, current_user):
+        set_flash(request, "Vous n'avez pas acces a ce fichier.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+
+    storage_backend = request.app.state.storage_backend
+    try:
+        return storage_backend.file_response(file_entry, as_attachment=False)
+    except StorageError as exc:
+        set_flash(request, str(exc), "error")
+        return RedirectResponse(f"/requests/{case_request.id}", status_code=303)
 
 
 @router.get("/files/{file_id}")
@@ -186,20 +329,19 @@ def download_file(
     current_user=Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    file_entry = db.get(CaseFile, file_id)
+    file_entry = get_case_file(db, file_id)
     if not file_entry:
         set_flash(request, "Le fichier demande est introuvable.", "error")
         return RedirectResponse("/dashboard", status_code=303)
 
     case_request = get_case_request(db, file_entry.case_request_id)
-    if not case_request or (case_request.user_id != current_user.id and current_user.role != "admin"):
+    if not _user_owns_request(case_request, current_user):
         set_flash(request, "Vous n'avez pas acces a ce fichier.", "error")
         return RedirectResponse("/dashboard", status_code=303)
 
     storage_backend = request.app.state.storage_backend
     try:
-        return storage_backend.download_response(file_entry)
+        return storage_backend.file_response(file_entry, as_attachment=True)
     except StorageError as exc:
         set_flash(request, str(exc), "error")
         return RedirectResponse(f"/requests/{case_request.id}", status_code=303)
-

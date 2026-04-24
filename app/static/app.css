@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #f5f7fb;
   --surface: #ffffff;
   --surface-soft: #f8fbff;
@@ -475,4 +475,58 @@ textarea {
   h1 {
     font-size: clamp(2.3rem, 12vw, 3.5rem);
   }
+}
+
+.button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.nested-panel {
+  padding: 20px;
+}
+
+.compact-actions {
+  align-items: center;
+}
+
+.status-note {
+  color: var(--primary-dark);
+}
+
+.file-list-detailed {
+  display: grid;
+  gap: 14px;
+  padding-left: 18px;
+}
+
+.file-list-detailed li {
+  display: grid;
+  gap: 8px;
+}
+
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.file-row {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.checkbox-inline input {
+  width: 18px;
+  height: 18px;
 }

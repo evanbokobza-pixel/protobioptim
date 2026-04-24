@@ -6,6 +6,9 @@ from app.models import CaseFile, CaseRequest, User
 from app.services.users import has_active_subscription
 
 
+EDITABLE_STATUSES = {"submitted"}
+
+
 def list_user_requests(db: Session, user: User) -> list[CaseRequest]:
     return (
         db.query(CaseRequest)
@@ -33,6 +36,14 @@ def get_case_request(db: Session, request_id: int) -> CaseRequest | None:
         .filter(CaseRequest.id == request_id)
         .first()
     )
+
+
+def get_case_file(db: Session, file_id: int) -> CaseFile | None:
+    return db.get(CaseFile, file_id)
+
+
+def patient_can_edit_request(case_request: CaseRequest) -> bool:
+    return case_request.status in EDITABLE_STATUSES and not bool(case_request.interpretation)
 
 
 def create_case_request(
@@ -67,6 +78,28 @@ def create_case_request(
     return case_request
 
 
+def update_case_request_details(
+    db: Session,
+    *,
+    case_request: CaseRequest,
+    age: str,
+    sex: str,
+    context: str,
+    symptoms: str,
+    comment: str,
+    wants_email_copy: bool,
+) -> CaseRequest:
+    case_request.age = age
+    case_request.sex = sex
+    case_request.context = context or None
+    case_request.symptoms = symptoms or None
+    case_request.comment = comment or None
+    case_request.wants_email_copy = wants_email_copy
+    db.commit()
+    db.refresh(case_request)
+    return case_request
+
+
 def delete_case_request(db: Session, *, case_request: CaseRequest, user: User) -> None:
     if user.role != "admin" and case_request.request_type == "Analyse unique":
         user.single_request_credits += 1
@@ -88,6 +121,11 @@ def attach_file_to_request(db: Session, *, case_request: CaseRequest, file_paylo
     db.commit()
     db.refresh(case_file)
     return case_file
+
+
+def delete_case_file(db: Session, *, file_record: CaseFile) -> None:
+    db.delete(file_record)
+    db.commit()
 
 
 def update_case_request(

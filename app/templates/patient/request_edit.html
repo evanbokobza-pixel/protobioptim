@@ -1,0 +1,89 @@
+﻿{% extends "base.html" %}
+{% block title %}Modifier le dossier {{ case_request.id }} | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page">
+    <section class="panel auth-panel">
+        <p class="eyebrow">Modifier mon dossier</p>
+        <h1>Relisez et ajustez vos documents</h1>
+        <p class="lede">Tant que l'analyse n'a pas commence, vous pouvez relire votre PDF, ajouter un document ou retirer un fichier transmis.</p>
+        <form method="post" enctype="multipart/form-data" class="form-grid" data-upload-form>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="stack">
+                <div class="panel panel-soft nested-panel">
+                    <span class="eyebrow">Documents deja transmis</span>
+                    {% for file in case_request.files %}
+                        <label class="file-row">
+                            <span>
+                                <strong>{{ file.original_name }}</strong>
+                                <span class="file-actions">
+                                    <a class="inline-link" href="/files/{{ file.id }}/preview" target="_blank" rel="noopener">Relire le document</a>
+                                    <a class="inline-link" href="/files/{{ file.id }}">Telecharger</a>
+                                </span>
+                            </span>
+                            <span class="checkbox-inline">
+                                <input type="checkbox" name="remove_file_ids" value="{{ file.id }}">
+                                <span>Retirer ce fichier</span>
+                            </span>
+                        </label>
+                    {% endfor %}
+                </div>
+
+                <div class="upload-box">
+                    <strong>Ajouter un nouveau document</strong>
+                    <span>Vous pouvez remplacer un fichier ou completer votre dossier.</span>
+                    <input type="file" name="analysis_files" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple>
+                </div>
+            </div>
+
+            <div class="grid grid-2">
+                <label>
+                    Age
+                    <input type="text" name="age" value="{{ case_request.age }}" required>
+                </label>
+                <label>
+                    Sexe
+                    <select name="sex" required>
+                        <option value="">Choisir</option>
+                        <option value="Femme" {% if case_request.sex == "Femme" %}selected{% endif %}>Femme</option>
+                        <option value="Homme" {% if case_request.sex == "Homme" %}selected{% endif %}>Homme</option>
+                        <option value="Autre" {% if case_request.sex == "Autre" %}selected{% endif %}>Autre</option>
+                    </select>
+                </label>
+            </div>
+            <label>
+                Contexte medical
+                <textarea name="context" rows="4" placeholder="Expliquez en quelques mots pourquoi vous souhaitez une interpretation.">{{ case_request.context or "" }}</textarea>
+            </label>
+            <label>
+                Symptomes ou elements utiles
+                <textarea name="symptoms" rows="4" placeholder="Expliquez ce que vous observez ou ressentez.">{{ case_request.symptoms or "" }}</textarea>
+            </label>
+            <label>
+                Commentaire libre
+                <textarea name="comment" rows="4" placeholder="Ajoutez toute precision utile.">{{ case_request.comment or "" }}</textarea>
+            </label>
+            <label class="checkbox-row">
+                <input type="checkbox" name="wants_email_copy" value="yes" {% if case_request.wants_email_copy %}checked{% endif %}>
+                <span>Je souhaite recevoir un email lorsqu'une reponse sera disponible dans mon espace.</span>
+            </label>
+            <div class="hero-actions compact-actions">
+                <a class="button button-light" href="/requests/{{ case_request.id }}">Annuler</a>
+                <button class="button" type="submit" data-submit-button data-loading-text="Mise a jour en cours...">Enregistrer mes modifications</button>
+            </div>
+        </form>
+    </section>
+</main>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const form = document.querySelector("[data-upload-form]");
+    const button = form?.querySelector("[data-submit-button]");
+    if (!form || !button) return;
+
+    form.addEventListener("submit", () => {
+        button.disabled = true;
+        button.textContent = button.dataset.loadingText || "Mise a jour en cours...";
+    });
+});
+</script>
+{% endblock %}
