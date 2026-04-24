@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
@@ -7,22 +7,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
 from app.config import settings
-from app.database import Base, SessionLocal, engine
 from app.routers import admin, auth, patient, public
-from app.services.users import ensure_admin_user
 from app.storage import build_storage_backend
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings.uploads_dir.mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(bind=engine)
-    with SessionLocal() as db:
-        ensure_admin_user(db)
-
-    storage_backend = build_storage_backend()
-    storage_backend.ensure_ready()
-    app.state.storage_backend = storage_backend
+    app.state.storage_backend = build_storage_backend()
     yield
 
 
