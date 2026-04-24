@@ -13,7 +13,7 @@ def list_user_requests(db: Session, user: User) -> list[CaseRequest]:
     return (
         db.query(CaseRequest)
         .options(joinedload(CaseRequest.files))
-        .filter(CaseRequest.user_id == user.id)
+        .filter(CaseRequest.user_id == user.id, CaseRequest.files.any())
         .order_by(CaseRequest.created_at.desc())
         .all()
     )
@@ -140,3 +140,4 @@ def update_case_request(
     db.commit()
     db.refresh(case_request)
     return case_request
+

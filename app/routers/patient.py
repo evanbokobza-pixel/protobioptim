@@ -153,14 +153,15 @@ def create_request(
             payload = storage_backend.upload_case_file(case_request.id, upload)
             uploaded_payloads.append(payload)
             attach_file_to_request(db, case_request=case_request, file_payload=payload)
-    except StorageError as exc:
+    except Exception as exc:
         for payload in uploaded_payloads:
             try:
                 storage_backend.delete_payload(payload)
             except Exception:
                 pass
         delete_case_request(db, case_request=case_request, user=current_user)
-        set_flash(request, str(exc), "error")
+        message = str(exc) if isinstance(exc, StorageError) else "Le transfert de vos fichiers a echoue. Merci de recommencer."
+        set_flash(request, message, "error")
         return RedirectResponse("/requests/new", status_code=303)
 
     refreshed_case_request = get_case_request(db, case_request.id)
@@ -263,13 +264,14 @@ def edit_request(
         for upload in valid_new_files:
             payload = storage_backend.upload_case_file(case_request.id, upload)
             uploaded_payloads.append(payload)
-    except StorageError as exc:
+    except Exception as exc:
         for payload in uploaded_payloads:
             try:
                 storage_backend.delete_payload(payload)
             except Exception:
                 pass
-        set_flash(request, str(exc), "error")
+        message = str(exc) if isinstance(exc, StorageError) else "Le transfert de vos fichiers a echoue. Merci de recommencer."
+        set_flash(request, message, "error")
         return RedirectResponse(f"/requests/{request_id}/edit", status_code=303)
 
     update_case_request_details(
@@ -345,3 +347,5 @@ def download_file(
     except StorageError as exc:
         set_flash(request, str(exc), "error")
         return RedirectResponse(f"/requests/{case_request.id}", status_code=303)
+
+

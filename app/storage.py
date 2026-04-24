@@ -74,42 +74,58 @@ class LocalStorageBackend:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def upload_case_file(self, case_request_id: int, upload: UploadFile) -> StoredFilePayload:
-        original_name, content = _validate_upload(upload, self.max_upload_size_bytes)
-        extension = Path(original_name).suffix.lower()
-        relative_path = Path("case-files") / str(case_request_id) / f"{uuid4().hex}{extension}"
-        target = self.root / relative_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content)
+        try:
+            original_name, content = _validate_upload(upload, self.max_upload_size_bytes)
+            extension = Path(original_name).suffix.lower()
+            relative_path = Path("case-files") / str(case_request_id) / f"{uuid4().hex}{extension}"
+            target = self.root / relative_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
 
-        return StoredFilePayload(
-            provider=self.provider,
-            bucket=None,
-            path=str(relative_path).replace("\\", "/"),
-            mime_type=upload.content_type or "application/octet-stream",
-            size_bytes=len(content),
-            original_name=original_name,
-        )
+            return StoredFilePayload(
+                provider=self.provider,
+                bucket=None,
+                path=str(relative_path).replace("\\", "/"),
+                mime_type=upload.content_type or "application/octet-stream",
+                size_bytes=len(content),
+                original_name=original_name,
+            )
+        except StorageError:
+            raise
+        except Exception as exc:
+            raise StorageError("Impossible d'enregistrer ce fichier pour le moment.") from exc
 
     def file_response(self, file_record, *, as_attachment: bool) -> Response:
-        target = self.root / file_record.storage_path
-        if not target.exists():
-            raise StorageError("Le fichier demande n'est plus disponible.")
-        return FileResponse(
-            path=target,
-            media_type=file_record.mime_type or "application/octet-stream",
-            filename=file_record.original_name,
-            headers=_build_content_headers(file_record.original_name, as_attachment=as_attachment),
-        )
+        try:
+            target = self.root / file_record.storage_path
+            if not target.exists():
+                raise StorageError("Le fichier demande n'est plus disponible.")
+            return FileResponse(
+                path=target,
+                media_type=file_record.mime_type or "application/octet-stream",
+                filename=file_record.original_name,
+                headers=_build_content_headers(file_record.original_name, as_attachment=as_attachment),
+            )
+        except StorageError:
+            raise
+        except Exception as exc:
+            raise StorageError("Impossible d'ouvrir ce fichier pour le moment.") from exc
 
     def delete_case_file(self, file_record) -> None:
-        target = self.root / file_record.storage_path
-        if target.exists():
-            target.unlink()
+        try:
+            target = self.root / file_record.storage_path
+            if target.exists():
+                target.unlink()
+        except Exception:
+            pass
 
     def delete_payload(self, payload: StoredFilePayload) -> None:
-        target = self.root / payload.path
-        if target.exists():
-            target.unlink()
+        try:
+            target = self.root / payload.path
+            if target.exists():
+                target.unlink()
+        except Exception:
+            pass
 
 
 class SupabaseStorageBackend:
@@ -131,59 +147,76 @@ class SupabaseStorageBackend:
 
     def ensure_ready(self) -> None:
         try:
-            self.client.storage.get_bucket(self.bucket_name)
-        except Exception:
-            self.client.storage.create_bucket(
-                self.bucket_name,
-                options={
-                    "public": False,
-                    "file_size_limit": self.max_upload_size_bytes,
-                    "allowed_mime_types": [
-                        "application/pdf",
-                        "image/jpeg",
-                        "image/png",
-                        "image/webp",
-                    ],
+            try:
+                self.client.storage.get_bucket(self.bucket_name)
+            except Exception:
+                self.client.storage.create_bucket(
+                    self.bucket_name,
+                    options={
+                        "public": False,
+                        "file_size_limit": self.max_upload_size_bytes,
+                        "allowed_mime_types": [
+                            "application/pdf",
+                            "image/jpeg",
+                            "image/png",
+                            "image/webp",
+                        ],
+                    },
+                )
+        except Exception as exc:
+            raise StorageError("Le stockage des fichiers n'est pas disponible pour le moment.") from exc
+
+    def upload_case_file(self, case_request_id: int, upload: UploadFile) -> StoredFilePayload:
+        try:
+            original_name, content = _validate_upload(upload, self.max_upload_size_bytes)
+            extension = Path(original_name).suffix.lower()
+            object_path = f"case-files/{case_request_id}/{uuid4().hex}{extension}"
+            self.client.storage.from_(self.bucket_name).upload(
+                path=object_path,
+                file=io.BytesIO(content),
+                file_options={
+                    "content-type": upload.content_type or "application/octet-stream",
+                    "cache-control": "3600",
+                    "upsert": "false",
                 },
             )
 
-    def upload_case_file(self, case_request_id: int, upload: UploadFile) -> StoredFilePayload:
-        original_name, content = _validate_upload(upload, self.max_upload_size_bytes)
-        extension = Path(original_name).suffix.lower()
-        object_path = f"case-files/{case_request_id}/{uuid4().hex}{extension}"
-        self.client.storage.from_(self.bucket_name).upload(
-            path=object_path,
-            file=io.BytesIO(content),
-            file_options={
-                "content-type": upload.content_type or "application/octet-stream",
-                "cache-control": "3600",
-                "upsert": "false",
-            },
-        )
-
-        return StoredFilePayload(
-            provider=self.provider,
-            bucket=self.bucket_name,
-            path=object_path,
-            mime_type=upload.content_type or "application/octet-stream",
-            size_bytes=len(content),
-            original_name=original_name,
-        )
+            return StoredFilePayload(
+                provider=self.provider,
+                bucket=self.bucket_name,
+                path=object_path,
+                mime_type=upload.content_type or "application/octet-stream",
+                size_bytes=len(content),
+                original_name=original_name,
+            )
+        except StorageError:
+            raise
+        except Exception as exc:
+            raise StorageError("Le televersement du fichier a echoue. Merci de recommencer dans un instant.") from exc
 
     def file_response(self, file_record, *, as_attachment: bool) -> Response:
-        content = self.client.storage.from_(file_record.storage_bucket).download(file_record.storage_path)
-        return Response(
-            content=content,
-            media_type=file_record.mime_type or "application/octet-stream",
-            headers=_build_content_headers(file_record.original_name, as_attachment=as_attachment),
-        )
+        try:
+            content = self.client.storage.from_(file_record.storage_bucket).download(file_record.storage_path)
+            return Response(
+                content=content,
+                media_type=file_record.mime_type or "application/octet-stream",
+                headers=_build_content_headers(file_record.original_name, as_attachment=as_attachment),
+            )
+        except Exception as exc:
+            raise StorageError("Impossible d'ouvrir ce fichier pour le moment.") from exc
 
     def delete_case_file(self, file_record) -> None:
-        self.client.storage.from_(file_record.storage_bucket).remove([file_record.storage_path])
+        try:
+            self.client.storage.from_(file_record.storage_bucket).remove([file_record.storage_path])
+        except Exception:
+            pass
 
     def delete_payload(self, payload: StoredFilePayload) -> None:
-        if payload.bucket:
-            self.client.storage.from_(payload.bucket).remove([payload.path])
+        try:
+            if payload.bucket:
+                self.client.storage.from_(payload.bucket).remove([payload.path])
+        except Exception:
+            pass
 
 
 def build_storage_backend():
