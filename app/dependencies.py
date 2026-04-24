@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.security import ensure_csrf_token
 from app.services import payments
 from app.services.users import access_label, get_user_by_id
 
@@ -64,6 +65,7 @@ def build_context(request: Request, *, current_user=None, **extra: Any) -> dict[
         "current_user": current_user,
         "access_label": access_label(current_user),
         "flash": pop_flash(request),
+        "csrf_token": ensure_csrf_token(request.session),
         **extra,
     }
 
