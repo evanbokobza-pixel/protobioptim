@@ -229,10 +229,9 @@ class ResilientStorageBackend:
 
     def ensure_ready(self) -> None:
         self.fallback_backend.ensure_ready()
-        try:
-            self.primary_backend.ensure_ready()
-        except StorageError:
-            logger.exception("Primary storage backend is unavailable at startup; fallback storage will be used.")
+        # Do not block application startup on remote storage checks.
+        # Render only needs the web process to bind its port quickly.
+        logger.info("Skipping remote storage readiness check during startup.")
 
     def upload_case_file(self, case_request_id: int, upload: UploadFile) -> StoredFilePayload:
         try:
@@ -270,3 +269,4 @@ def build_storage_backend():
         )
         return ResilientStorageBackend(supabase_backend, local_backend)
     return local_backend
+
