@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle demande | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page">
+    <section class="panel auth-panel">
+        <p class="eyebrow">Depot de dossier</p>
+        <h1>Envoyez vos analyses biologiques</h1>
+        <p class="lede">Ajoutez vos analyses et quelques informations utiles pour recevoir une interpretation ecrite claire dans votre espace.</p>
+        <div class="highlight-box">
+            <span class="eyebrow">Ma formule</span>
+            <strong>{{ access_label }}</strong>
+        </div>
+        <form method="post" enctype="multipart/form-data" class="form-grid">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="upload-box">
+                <strong>Selectionnez vos documents</strong>
+                <span>Formats conseilles : PDF, JPG ou PNG. Vous pouvez joindre plusieurs fichiers.</span>
+                <input type="file" name="analysis_files" multiple required>
+            </div>
+            <div class="grid grid-2">
+                <label>
+                    Age
+                    <input type="text" name="age" placeholder="Exemple : 58 ans" required>
+                </label>
+                <label>
+                    Sexe
+                    <select name="sex" required>
+                        <option value="">Choisir</option>
+                        <option value="Femme">Femme</option>
+                        <option value="Homme">Homme</option>
+                        <option value="Autre">Autre</option>
+                    </select>
+                </label>
+            </div>
+            <label>
+                Contexte medical
+                <textarea name="context" rows="4" placeholder="Expliquez en quelques mots pourquoi vous souhaitez une interpretation."></textarea>
+            </label>
+            <label>
+                Symptomes ou elements utiles
+                <textarea name="symptoms" rows="4" placeholder="Expliquez ce que vous observez ou ressentez."></textarea>
+            </label>
+            <label>
+                Commentaire libre
+                <textarea name="comment" rows="4" placeholder="Ajoutez toute precision utile."></textarea>
+            </label>
+            <label class="checkbox-row">
+                <input type="checkbox" name="wants_email_copy" value="yes">
+                <span>Je souhaite recevoir un email lorsqu'une reponse sera disponible dans mon espace.</span>
+            </label>
+            <button class="button" type="submit">Envoyer ma demande</button>
+        </form>
+    </section>
+</main>
+{% endblock %}

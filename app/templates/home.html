@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Accueil | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page">
+    <section class="hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Bioptim</p>
+            <h1>Envoyez vos analyses.<br>Recevez une explication claire et ecrite.</h1>
+            <p class="lede">
+                Transmettez vos resultats biologiques en ligne et retrouvez un compte rendu
+                structure dans votre espace personnel.
+            </p>
+            <div class="hero-actions">
+                {% if current_user %}
+                    <a class="button" href="/dashboard">Ouvrir mon espace</a>
+                    <a class="button button-light" href="/checkout">Choisir une formule</a>
+                {% else %}
+                    <a class="button" href="/signup">Creer un compte</a>
+                    <a class="button button-light" href="/login">Se connecter</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="hero-side">
+            <div class="panel panel-soft">
+                <span class="eyebrow">Comment ca marche</span>
+                <strong>1. Choisissez votre formule</strong>
+                <strong>2. Envoyez vos analyses</strong>
+                <strong>3. Recevez votre reponse<br>ecrite</strong>
+            </div>
+            <div class="panel panel-accent">
+                <span class="eyebrow">Votre espace</span>
+                <p>Demandes, documents et reponses restent reunis au meme endroit.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="grid grid-3">
+        <article class="panel section-card">
+            <p class="eyebrow">Simple</p>
+            <h2>Un parcours lisible</h2>
+            <p>Creation de compte, commande, envoi des analyses, puis suivi dans votre espace.</p>
+        </article>
+        <article class="panel section-card">
+            <p class="eyebrow">Clair</p>
+            <h2>Une reponse ecrite</h2>
+            <p>Votre dossier est suivi dans un espace qui permet de retrouver rapidement les informations utiles.</p>
+        </article>
+        <article class="panel section-card">
+            <p class="eyebrow">Souple</p>
+            <h2>Deux formules</h2>
+            <p>Abonnement mensuel ou demande unique selon votre besoin.</p>
+        </article>
+    </section>
+
+    <section class="panel pricing-band">
+        <div class="section-head">
+            <div>
+                <p class="eyebrow">Les offres</p>
+                <h2>Choisissez la formule qui vous convient</h2>
+            </div>
+            <a class="button button-light" href="/checkout">Voir les formules</a>
+        </div>
+        <div class="grid grid-2">
+            <article class="pricing-card pricing-card-highlight">
+                <strong>Abonnement mensuel</strong>
+                <p class="price">49 EUR / mois</p>
+                <p>Pour transmettre vos analyses au fil du temps et conserver un suivi dans votre espace.</p>
+                <a class="button" href="/checkout?plan=subscription">Choisir l'abonnement</a>
+            </article>
+            <article class="pricing-card">
+                <strong>Analyse unique</strong>
+                <p class="price">69 EUR</p>
+                <p>Pour une demande ponctuelle, sans engagement.</p>
+                <a class="button button-light" href="/checkout?plan=single">Choisir cette formule</a>
+            </article>
+        </div>
+    </section>
+</main>
+{% endblock %}

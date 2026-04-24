@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+</head>
+<body>
+    <div class="site-shell">
+        <header class="topbar">
+            <a class="brand" href="/">
+                <span class="brand-mark">B</span>
+                <span>
+                    <strong>{{ app_name }}</strong>
+                    <small>Interpretation de bilans biologiques</small>
+                </span>
+            </a>
+            <nav class="topnav">
+                {% if current_user %}
+                    <a href="/dashboard">Mon espace</a>
+                    <a href="/requests/new">Envoyer mes analyses</a>
+                    {% if current_user.role == "admin" %}
+                        <a href="/admin">Administration</a>
+                    {% endif %}
+                    <form method="post" action="/logout">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button class="button button-ghost" type="submit">Se deconnecter</button>
+                    </form>
+                {% else %}
+                    <a href="/login">Connexion</a>
+                    <a class="button button-small" href="/signup">Creer un compte</a>
+                {% endif %}
+            </nav>
+        </header>
+
+        {% if flash %}
+            <div class="flash flash-{{ flash.kind }}">{{ flash.message }}</div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

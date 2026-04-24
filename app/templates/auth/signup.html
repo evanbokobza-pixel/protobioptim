@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Inscription | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page page-narrow">
+    <section class="panel auth-panel">
+        <p class="eyebrow">Creer un compte</p>
+        <h1>Ouvrez votre espace {{ app_name }}</h1>
+        <p class="lede">Creez votre espace personnel pour transmettre vos analyses et suivre vos demandes.</p>
+        <form method="post" class="form-grid">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>
+                Nom et prenom
+                <input type="text" name="full_name" placeholder="Exemple : Claire Martin" required>
+            </label>
+            <label>
+                Adresse email
+                <input type="email" name="email" placeholder="nom@email.fr" required>
+            </label>
+            <label>
+                Mot de passe
+                <input type="password" name="password" placeholder="Au moins 8 caracteres avec 1 chiffre" required>
+            </label>
+            <label>
+                Confirmation du mot de passe
+                <input type="password" name="password_confirm" placeholder="Retapez votre mot de passe" required>
+            </label>
+            <button class="button" type="submit">Creer mon compte</button>
+        </form>
+        <p class="footnote">Vous avez deja un compte ? <a href="/login">Se connecter</a></p>
+    </section>
+</main>
+{% endblock %}

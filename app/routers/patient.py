@@ -1,0 +1,196 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.dependencies import build_context, require_user, set_flash, templates
+from app.models import CaseFile, Payment
+from app.security import csrf_is_valid, ensure_csrf_token
+from app.services import payments
+from app.services.case_requests import (
+    attach_file_to_request,
+    create_case_request,
+    get_case_request,
+    list_user_requests,
+)
+from app.services.users import can_submit_requests
+from app.storage import StorageError
+
+
+router = APIRouter()
+
+
+@router.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request, current_user=Depends(require_user), db: Session = Depends(get_db)):
+    my_requests = list_user_requests(db, current_user)
+    recent_payments = (
+        db.query(Payment)
+        .filter(Payment.user_id == current_user.id)
+        .order_by(Payment.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    answered_count = sum(1 for item in my_requests if item.interpretation)
+    context = build_context(
+        request,
+        current_user=current_user,
+        case_requests=my_requests,
+        recent_payments=recent_payments,
+        answered_count=answered_count,
+        csrf_token=ensure_csrf_token(request.session),
+    )
+    return templates.TemplateResponse(request, "patient/dashboard.html", context)
+
+
+@router.get("/checkout", response_class=HTMLResponse)
+def checkout(request: Request, plan: str = "subscription", current_user=Depends(require_user)):
+    selected_plan = payments.get_plan(plan if plan in payments.PLANS else "subscription")
+    context = build_context(
+        request,
+        current_user=current_user,
+        selected_plan_code=plan if plan in payments.PLANS else "subscription",
+        selected_plan=selected_plan,
+        csrf_token=ensure_csrf_token(request.session),
+    )
+    return templates.TemplateResponse(request, "patient/checkout.html", context)
+
+
+@router.post("/checkout")
+def confirm_checkout(
+    request: Request,
+    plan_code: str = Form(...),
+    cardholder_name: str = Form(...),
+    card_number: str = Form(...),
+    postal_code: str = Form(...),
+    consent: str = Form(...),
+    csrf_token: str = Form(...),
+    current_user=Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if not csrf_is_valid(request.session, csrf_token):
+        set_flash(request, "Le formulaire a expire. Merci de recommencer.", "error")
+        return RedirectResponse("/checkout", status_code=303)
+    if not consent:
+        set_flash(request, "Merci de confirmer votre commande.", "error")
+        return RedirectResponse(f"/checkout?plan={plan_code}", status_code=303)
+
+    try:
+        payment = payments.create_fake_payment(db, user=current_user, plan_code=plan_code)
+    except ValueError as exc:
+        set_flash(request, str(exc), "error")
+        return RedirectResponse("/checkout", status_code=303)
+
+    set_flash(request, f"Commande confirmee ({payment.provider_ref}).")
+    return RedirectResponse("/dashboard", status_code=303)
+
+
+@router.get("/requests/new", response_class=HTMLResponse)
+def new_request_form(request: Request, current_user=Depends(require_user)):
+    if not can_submit_requests(current_user):
+        set_flash(request, "Choisissez une formule avant d'envoyer vos analyses.", "error")
+        return RedirectResponse("/checkout?plan=single", status_code=303)
+
+    context = build_context(
+        request,
+        current_user=current_user,
+        csrf_token=ensure_csrf_token(request.session),
+    )
+    return templates.TemplateResponse(request, "patient/request_new.html", context)
+
+
+@router.post("/requests/new")
+def create_request(
+    request: Request,
+    age: str = Form(...),
+    sex: str = Form(...),
+    context_value: str = Form("", alias="context"),
+    symptoms: str = Form(""),
+    comment: str = Form(""),
+    wants_email_copy: str | None = Form(default=None),
+    csrf_token: str = Form(...),
+    analysis_files: list[UploadFile] = File(...),
+    current_user=Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if not csrf_is_valid(request.session, csrf_token):
+        set_flash(request, "Le formulaire a expire. Merci de recommencer.", "error")
+        return RedirectResponse("/requests/new", status_code=303)
+    if not can_submit_requests(current_user):
+        set_flash(request, "Choisissez une formule avant d'envoyer vos analyses.", "error")
+        return RedirectResponse("/checkout?plan=single", status_code=303)
+
+    valid_files = [file for file in analysis_files if file.filename]
+    if not valid_files:
+        set_flash(request, "Merci d'ajouter au moins un fichier.", "error")
+        return RedirectResponse("/requests/new", status_code=303)
+
+    case_request = create_case_request(
+        db,
+        user=current_user,
+        age=age,
+        sex=sex,
+        context=context_value,
+        symptoms=symptoms,
+        comment=comment,
+        wants_email_copy=bool(wants_email_copy),
+    )
+
+    storage_backend = request.app.state.storage_backend
+    try:
+        for upload in valid_files:
+            payload = storage_backend.upload_case_file(case_request.id, upload)
+            attach_file_to_request(db, case_request=case_request, file_payload=payload)
+    except StorageError as exc:
+        set_flash(request, str(exc), "error")
+        return RedirectResponse("/requests/new", status_code=303)
+
+    set_flash(request, "Votre demande a bien ete envoyee.")
+    return RedirectResponse(f"/requests/{case_request.id}", status_code=303)
+
+
+@router.get("/requests/{request_id}", response_class=HTMLResponse)
+def request_detail(
+    request: Request,
+    request_id: int,
+    current_user=Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    case_request = get_case_request(db, request_id)
+    if not case_request or (case_request.user_id != current_user.id and current_user.role != "admin"):
+        set_flash(request, "Ce dossier est introuvable.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+
+    context = build_context(
+        request,
+        current_user=current_user,
+        case_request=case_request,
+        csrf_token=ensure_csrf_token(request.session),
+    )
+    return templates.TemplateResponse(request, "patient/request_detail.html", context)
+
+
+@router.get("/files/{file_id}")
+def download_file(
+    request: Request,
+    file_id: int,
+    current_user=Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    file_entry = db.get(CaseFile, file_id)
+    if not file_entry:
+        set_flash(request, "Le fichier demande est introuvable.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+
+    case_request = get_case_request(db, file_entry.case_request_id)
+    if not case_request or (case_request.user_id != current_user.id and current_user.role != "admin"):
+        set_flash(request, "Vous n'avez pas acces a ce fichier.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+
+    storage_backend = request.app.state.storage_backend
+    try:
+        return storage_backend.download_response(file_entry)
+    except StorageError as exc:
+        set_flash(request, str(exc), "error")
+        return RedirectResponse(f"/requests/{case_request.id}", status_code=303)

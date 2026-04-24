@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Connexion | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page page-narrow">
+    <section class="panel auth-panel">
+        <p class="eyebrow">Connexion</p>
+        <h1>Retrouvez votre espace</h1>
+        <p class="lede">Connectez-vous pour suivre vos demandes et consulter vos reponses.</p>
+        <form method="post" class="form-grid">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>
+                Adresse email
+                <input type="email" name="email" placeholder="nom@email.fr" required>
+            </label>
+            <label>
+                Mot de passe
+                <input type="password" name="password" placeholder="Votre mot de passe" required>
+            </label>
+            <button class="button" type="submit">Se connecter</button>
+        </form>
+        <p class="footnote">Pas encore de compte ? <a href="/signup">Creer un compte</a></p>
+    </section>
+</main>
+{% endblock %}

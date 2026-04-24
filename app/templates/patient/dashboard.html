@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Mon espace | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page">
+    <section class="panel dashboard-head">
+        <div>
+            <p class="eyebrow">Mon espace</p>
+            <h1>Bonjour {{ current_user.full_name }}</h1>
+            <p class="lede">Retrouvez ici vos demandes, vos documents transmis et les reponses disponibles dans votre espace.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button" href="/requests/new">Nouvelle demande</a>
+            <a class="button button-light" href="/checkout">Choisir une formule</a>
+        </div>
+    </section>
+
+    <section class="grid grid-3">
+        <article class="panel stat-card">
+            <span class="eyebrow">Formule active</span>
+            <strong>{{ access_label }}</strong>
+        </article>
+        <article class="panel stat-card">
+            <span class="eyebrow">Demandes envoyees</span>
+            <strong>{{ case_requests|length }}</strong>
+        </article>
+        <article class="panel stat-card">
+            <span class="eyebrow">Reponses disponibles</span>
+            <strong>{{ answered_count }}</strong>
+        </article>
+    </section>
+
+    <section class="grid grid-2">
+        <article class="panel">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow">Demandes</p>
+                    <h2>Vos dossiers biologiques</h2>
+                </div>
+                <a class="button button-light" href="/requests/new">Deposer des analyses</a>
+            </div>
+            <div class="stack">
+                {% if case_requests %}
+                    {% for item in case_requests %}
+                        <article class="request-card">
+                            <div class="request-top">
+                                <strong>Demande #{{ item.id }}</strong>
+                                <span class="badge badge-{{ item.status }}">{{ status_label(item.status) }}</span>
+                            </div>
+                            <p class="muted">Type : {{ item.request_type }} - {{ item.files|length }} fichier(s) - Creee le {{ item.created_at|datetime }}</p>
+                            <p>{% if item.interpretation %}Compte rendu disponible.{% else %}Votre demande est en cours de traitement.{% endif %}</p>
+                            <a class="inline-link" href="/requests/{{ item.id }}">Voir le dossier</a>
+                        </article>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">Aucune demande pour le moment. Vous pouvez choisir une formule puis transmettre vos premieres analyses.</div>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow">Facturation</p>
+                    <h2>Historique de vos formules</h2>
+                </div>
+                <a class="button button-light" href="/checkout">Choisir une formule</a>
+            </div>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Offre</th>
+                        <th>Montant</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if recent_payments %}
+                        {% for payment in recent_payments %}
+                            <tr>
+                                <td>{{ payment.plan_label }}</td>
+                                <td>{{ payment.amount_cents|money }}</td>
+                                <td>{{ payment_status_label(payment.status) }}</td>
+                                <td>{{ payment.created_at|datetime }}</td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4">Aucune commande enregistree.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </article>
+    </section>
+</main>
+{% endblock %}

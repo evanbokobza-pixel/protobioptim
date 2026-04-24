@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Dossier {{ case_request.id }} | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page">
+    <section class="panel dashboard-head">
+        <div>
+            <p class="eyebrow">Mon dossier</p>
+            <h1>Demande #{{ case_request.id }}</h1>
+            <p class="lede">Soumise le {{ case_request.created_at|datetime }}</p>
+            <div class="hero-actions">
+                <span class="badge badge-{{ case_request.status }}">{{ status_label(case_request.status) }}</span>
+            </div>
+        </div>
+        <div class="hero-actions">
+            <a class="button button-light" href="/dashboard">Retour au tableau de bord</a>
+            {% if current_user.role == "admin" %}
+                <a class="button" href="/admin/requests/{{ case_request.id }}">Voir cote admin</a>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="grid grid-2">
+        <article class="panel">
+            <p class="eyebrow">Informations transmises</p>
+            <h2>Contexte du patient</h2>
+            <dl class="detail-list">
+                <div><dt>Type de demande</dt><dd>{{ case_request.request_type }}</dd></div>
+                <div><dt>Age</dt><dd>{{ case_request.age }}</dd></div>
+                <div><dt>Sexe</dt><dd>{{ case_request.sex }}</dd></div>
+                <div><dt>Contexte</dt><dd>{{ case_request.context or "Aucune information renseignee." }}</dd></div>
+                <div><dt>Symptomes</dt><dd>{{ case_request.symptoms or "Aucune information renseignee." }}</dd></div>
+                <div><dt>Commentaire</dt><dd>{{ case_request.comment or "Aucune information renseignee." }}</dd></div>
+            </dl>
+        </article>
+
+        <article class="panel">
+            <p class="eyebrow">Fichiers et reponse</p>
+            <h2>Documents transmis</h2>
+            <ul class="file-list">
+                {% if case_request.files %}
+                    {% for file in case_request.files %}
+                        <li><a class="inline-link" href="/files/{{ file.id }}">{{ file.original_name }}</a></li>
+                    {% endfor %}
+                {% else %}
+                    <li>Aucun fichier transmis.</li>
+                {% endif %}
+            </ul>
+
+            <h3>Votre reponse</h3>
+            {% if case_request.interpretation %}
+                <div class="response-box">{{ case_request.interpretation }}</div>
+            {% else %}
+                <div class="empty-state">Votre reponse sera ajoutee dans cet espace des qu'elle sera disponible.</div>
+            {% endif %}
+        </article>
+    </section>
+</main>
+{% endblock %}

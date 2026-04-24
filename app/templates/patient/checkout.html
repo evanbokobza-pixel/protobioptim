@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Paiement | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page">
+    <section class="panel dashboard-head">
+        <div>
+            <p class="eyebrow">Paiement securise</p>
+            <h1>Choisissez votre formule</h1>
+            <p class="lede">Selectionnez l'offre qui vous convient puis confirmez votre commande en quelques informations.</p>
+        </div>
+    </section>
+
+    <section class="grid grid-2">
+        <article class="panel">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow">Les offres</p>
+                    <h2>Formules disponibles</h2>
+                </div>
+            </div>
+            <div class="stack">
+                {% for code, plan in plans.items() %}
+                    <article class="pricing-card {% if code == selected_plan_code %}pricing-card-highlight{% endif %}">
+                        <strong>{{ plan.label }}</strong>
+                        <p class="price">{{ plan.amount_cents|money }}{% if code == "subscription" %} / mois{% endif %}</p>
+                        <p>{{ plan.description }}</p>
+                        <a class="button {% if code != selected_plan_code %}button-light{% endif %}" href="/checkout?plan={{ code }}">
+                            {% if code == selected_plan_code %}Plan selectionne{% else %}Choisir ce plan{% endif %}
+                        </a>
+                    </article>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="panel">
+            <p class="eyebrow">Validation</p>
+            <h2>{{ selected_plan.label }}</h2>
+            <p class="lede">{{ selected_plan.description }}</p>
+            <form method="post" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="plan_code" value="{{ selected_plan_code }}">
+                <label>
+                    Nom du titulaire
+                    <input type="text" name="cardholder_name" placeholder="Exemple : Claire Martin" required>
+                </label>
+                <label>
+                    Numero de carte
+                    <input type="text" name="card_number" value="4242 4242 4242 4242" required>
+                </label>
+                <label>
+                    Code postal de facturation
+                    <input type="text" name="postal_code" placeholder="75008" required>
+                </label>
+                <label class="checkbox-row">
+                    <input type="checkbox" name="consent" value="yes" required>
+                    <span>Je confirme les informations de ma commande et j'accepte les conditions de l'offre selectionnee.</span>
+                </label>
+                <button class="button" type="submit">Confirmer ma commande</button>
+            </form>
+        </article>
+    </section>
+</main>
+{% endblock %}

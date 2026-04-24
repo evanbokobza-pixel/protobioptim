@@ -1,0 +1,51 @@
+﻿{% extends "base.html" %}
+{% block title %}Administration | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page">
+    <section class="panel dashboard-head">
+        <div>
+            <p class="eyebrow">Administration</p>
+            <h1>Suivi des dossiers {{ app_name }}</h1>
+            <p class="lede">Vue d'ensemble des patients, des demandes en cours et des paiements enregistres.</p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="section-head">
+            <div>
+                <p class="eyebrow">Demandes recentes</p>
+                <h2>Dossiers patients</h2>
+            </div>
+        </div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Patient</th>
+                    <th>Statut</th>
+                    <th>Type</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if requests_list %}
+                    {% for item in requests_list %}
+                        <tr>
+                            <td><a class="inline-link" href="/admin/requests/{{ item.id }}">#{{ item.id }}</a></td>
+                            <td><strong>{{ item.user.full_name }}</strong><br><span class="muted">{{ item.user.email }}</span></td>
+                            <td>{{ status_label(item.status) }}</td>
+                            <td>{{ item.request_type }}</td>
+                            <td>{{ item.created_at|datetime }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5">Aucun dossier pour le moment.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </section>
+</main>
+{% endblock %}
+

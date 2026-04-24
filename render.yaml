@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: protobioptim
+    runtime: python
+    plan: starter
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: Bioptim
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: SESSION_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: bioptim-files
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "8"
+      - key: SIGNED_URL_TTL_SECONDS
+        value: "900"

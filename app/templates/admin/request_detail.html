@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Admin dossier {{ case_request.id }} | {{ app_name }}{% endblock %}
+{% block content %}
+<main class="page">
+    <section class="panel dashboard-head">
+        <div>
+            <p class="eyebrow">Traitement admin</p>
+            <h1>Dossier #{{ case_request.id }} - {{ case_request.user.full_name }}</h1>
+            <p class="lede">{{ case_request.user.email }}</p>
+            <div class="hero-actions">
+                <span class="badge badge-{{ case_request.status }}">{{ status_label(case_request.status) }}</span>
+            </div>
+        </div>
+        <div class="hero-actions">
+            <a class="button button-light" href="/admin">Retour admin</a>
+            <a class="button" href="/requests/{{ case_request.id }}">Voir cote patient</a>
+        </div>
+    </section>
+
+    <section class="grid grid-2">
+        <article class="panel">
+            <p class="eyebrow">Contenu transmis</p>
+            <h2>Informations du patient</h2>
+            <dl class="detail-list">
+                <div><dt>Type</dt><dd>{{ case_request.request_type }}</dd></div>
+                <div><dt>Age</dt><dd>{{ case_request.age }}</dd></div>
+                <div><dt>Sexe</dt><dd>{{ case_request.sex }}</dd></div>
+                <div><dt>Contexte</dt><dd>{{ case_request.context or "Aucune information renseignee." }}</dd></div>
+                <div><dt>Symptomes</dt><dd>{{ case_request.symptoms or "Aucune information renseignee." }}</dd></div>
+                <div><dt>Commentaire</dt><dd>{{ case_request.comment or "Aucune information renseignee." }}</dd></div>
+            </dl>
+            <h3>Fichiers joints</h3>
+            <ul class="file-list">
+                {% for file in case_request.files %}
+                    <li><a class="inline-link" href="/files/{{ file.id }}">{{ file.original_name }}</a></li>
+                {% endfor %}
+            </ul>
+        </article>
+
+        <article class="panel">
+            <p class="eyebrow">Reponse medicale</p>
+            <h2>Mettre a jour le dossier</h2>
+            <form method="post" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>
+                    Statut
+                    <select name="status" required>
+                        <option value="submitted" {% if case_request.status == "submitted" %}selected{% endif %}>Dossier recu</option>
+                        <option value="reviewing" {% if case_request.status == "reviewing" %}selected{% endif %}>Analyse en cours</option>
+                        <option value="answered" {% if case_request.status == "answered" %}selected{% endif %}>Compte rendu disponible</option>
+                        <option value="closed" {% if case_request.status == "closed" %}selected{% endif %}>Dossier cloture</option>
+                    </select>
+                </label>
+                <label>
+                    Interpretation ecrite
+                    <textarea name="interpretation" rows="12" placeholder="Renseignez ici la synthese a remettre au patient.">{{ case_request.interpretation or "" }}</textarea>
+                </label>
+                <button class="button" type="submit">Enregistrer la reponse</button>
+            </form>
+        </article>
+    </section>
+</main>
+{% endblock %}
